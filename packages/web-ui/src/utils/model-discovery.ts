@@ -50,7 +50,7 @@ export async function discoverOllamaModels(baseUrl: string, _apiKey?: string): P
 					provider: "", // Will be set by caller
 					baseUrl: `${baseUrl}/v1`,
 					reasoning: capabilities.includes("thinking"),
-					input: ["text"],
+					input: capabilities.includes("vision") ? ["text", "image"] : ["text"],
 					cost: {
 						input: 0,
 						output: 0,

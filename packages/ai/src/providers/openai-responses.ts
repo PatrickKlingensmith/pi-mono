@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import { getEnvApiKey } from "../env-api-keys.js";
-import { supportsXhigh } from "../models.js";
+import { getProviders, supportsXhigh } from "../models.js";
 import type {
 	Api,
 	AssistantMessage,
@@ -144,11 +144,11 @@ export const streamSimpleOpenAIResponses: StreamFunction<"openai-responses", Sim
 	options?: SimpleStreamOptions,
 ): AssistantMessageEventStream => {
 	const apiKey = options?.apiKey || getEnvApiKey(model.provider);
-	if (!apiKey) {
+	if (!apiKey && (getProviders() as string[]).includes(model.provider)) {
 		throw new Error(`No API key for provider: ${model.provider}`);
 	}
-
-	const base = buildBaseOptions(model, options, apiKey);
+	// Local/custom providers don't require auth; placeholder is ignored by the server.
+	const base = buildBaseOptions(model, options, apiKey || "no-auth-required");
 	const reasoningEffort = supportsXhigh(model) ? options?.reasoning : clampReasoning(options?.reasoning);
 
 	return streamOpenAIResponses(model, context, {

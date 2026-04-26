@@ -1,6 +1,6 @@
-import { streamSimple, type ToolResultMessage, type Usage } from "@mariozechner/pi-ai";
+import { getProviders, streamSimple, type ToolResultMessage, type Usage } from "@mariozechner/pi-ai";
 import { html, LitElement } from "lit";
-import { customElement, property, query } from "lit/decorators.js";
+import { customElement, property, query, state } from "lit/decorators.js";
 import { ModelSelector } from "../dialogs/ModelSelector.js";
 import type { MessageEditor } from "./MessageEditor.js";
 import "./MessageEditor.js";
@@ -38,6 +38,10 @@ export class AgentInterface extends LitElement {
 	// References
 	@query("message-editor") private _messageEditor!: MessageEditor;
 	@query("streaming-message-container") private _streamingContainer!: StreamingMessageContainer;
+
+	// Tracks streaming state locally so renders aren't sensitive to finishRun() timing.
+	// agent.state.isStreaming is still used as the send-guard to prevent double-sends.
+	@state() private _isStreaming = false;
 
 	private _autoScroll = true;
 	private _lastScrollTop = 0;
@@ -132,7 +136,12 @@ export class AgentInterface extends LitElement {
 			this._unsubscribeSession();
 			this._unsubscribeSession = undefined;
 		}
-		if (!this.session) return;
+		if (!this.session) {
+			this._isStreaming = false;
+			return;
+		}
+		// Sync local flag with the new session's current state
+		this._isStreaming = this.session.state.isStreaming;
 
 		// Set default streamFn with proxy support if not already set
 		if (this.session.streamFn === streamSimple) {
@@ -145,40 +154,46 @@ export class AgentInterface extends LitElement {
 		// Set default getApiKey if not already set
 		if (!this.session.getApiKey) {
 			this.session.getApiKey = async (provider: string) => {
+				// Check built-in provider keys first
 				const key = await getAppStorage().providerKeys.get(provider);
-				return key ?? undefined;
+				if (key) return key;
+				// Fall back to custom provider's stored apiKey
+				const customProviders = await getAppStorage().customProviders.getAll();
+				const customProvider = customProviders.find((p) => p.name === provider);
+				return customProvider?.apiKey ?? undefined;
 			};
 		}
 
 		this._unsubscribeSession = this.session.subscribe(async (ev: AgentEvent) => {
 			switch (ev.type) {
+				case "agent_start":
+					this._isStreaming = true; // @state triggers requestUpdate()
+					break;
 				case "message_start":
 				case "turn_start":
 				case "turn_end":
-				case "agent_start":
 					this.requestUpdate();
 					break;
 				case "message_end":
-					// Clear streaming container when a message completes
-					// to prevent duplicate rendering (stable list now has this message)
+					// Clear streaming container — stable list now has this message
 					if (this._streamingContainer) {
 						this._streamingContainer.setMessage(null, true);
 					}
 					this.requestUpdate();
 					break;
 				case "agent_end":
-					// Clear streaming container when agent finishes
+					// Set local flag first so the next render sees isStreaming=false.
+					// agent.state.isStreaming is still true here (finishRun() hasn't run yet),
+					// so reading it from state would produce the wrong value.
+					this._isStreaming = false; // @state triggers requestUpdate()
 					if (this._streamingContainer) {
-						this._streamingContainer.isStreaming = false;
 						this._streamingContainer.setMessage(null, true);
 					}
-					this.requestUpdate();
 					break;
 				case "message_update":
 					if (this._streamingContainer) {
-						const isStreaming = this.session?.state.isStreaming || false;
-						this._streamingContainer.isStreaming = isStreaming;
-						this._streamingContainer.setMessage(ev.message, !isStreaming);
+						this._streamingContainer.isStreaming = this._isStreaming;
+						this._streamingContainer.setMessage(ev.message, !this._isStreaming);
 					}
 					this.requestUpdate();
 					break;
@@ -218,22 +233,26 @@ export class AgentInterface extends LitElement {
 		if (!session) throw new Error("No session set on AgentInterface");
 		if (!session.state.model) throw new Error("No model set on AgentInterface");
 
-		// Check if API key exists for the provider (only needed in direct mode)
+		// Check if API key exists — only required for built-in cloud providers.
+		// Custom providers (Ollama, llama.cpp, etc.) store their optional key on
+		// the provider object itself, so no pre-flight check is needed for them.
 		const provider = session.state.model.provider;
-		const apiKey = await getAppStorage().providerKeys.get(provider);
+		const knownProviders = new Set<string>(getProviders());
 
-		// If no API key, prompt for it
-		if (!apiKey) {
-			if (!this.onApiKeyRequired) {
-				console.error("No API key configured and no onApiKeyRequired handler set");
-				return;
-			}
+		if (knownProviders.has(provider)) {
+			const apiKey = await getAppStorage().providerKeys.get(provider);
 
-			const success = await this.onApiKeyRequired(provider);
+			if (!apiKey) {
+				if (!this.onApiKeyRequired) {
+					console.error("No API key configured and no onApiKeyRequired handler set");
+					return;
+				}
 
-			// If still no API key, abort the send
-			if (!success) {
-				return;
+				const success = await this.onApiKeyRequired(provider);
+
+				if (!success) {
+					return;
+				}
 			}
 		}
 
@@ -279,15 +298,15 @@ export class AgentInterface extends LitElement {
 					.messages=${this.session.state.messages}
 					.tools=${state.tools}
 					.pendingToolCalls=${this.session ? this.session.state.pendingToolCalls : new Set<string>()}
-					.isStreaming=${state.isStreaming}
+					.isStreaming=${this._isStreaming}
 					.onCostClick=${this.onCostClick}
 				></message-list>
 
 				<!-- Streaming message container - manages its own updates -->
 				<streaming-message-container
-					class="${state.isStreaming ? "" : "hidden"}"
+					class="${this._isStreaming ? "" : "hidden"}"
 					.tools=${state.tools}
-					.isStreaming=${state.isStreaming}
+					.isStreaming=${this._isStreaming}
 					.pendingToolCalls=${state.pendingToolCalls}
 					.toolResultsById=${toolResultsById}
 					.onCostClick=${this.onCostClick}
@@ -362,7 +381,7 @@ export class AgentInterface extends LitElement {
 				<div class="shrink-0">
 					<div class="max-w-3xl mx-auto px-2">
 						<message-editor
-							.isStreaming=${state.isStreaming}
+							.isStreaming=${this._isStreaming}
 							.currentModel=${state.model}
 							.thinkingLevel=${state.thinkingLevel}
 							.showAttachmentButton=${this.enableAttachments}
@@ -378,6 +397,7 @@ export class AgentInterface extends LitElement {
 								} else {
 									ModelSelector.open(state.model, (model) => {
 										session.state.model = model;
+										this.requestUpdate();
 									});
 								}
 							}}

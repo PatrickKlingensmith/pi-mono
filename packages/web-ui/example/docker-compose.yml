@@ -1,0 +1,8 @@
+services:
+  web-ui-example:
+    build:
+      context: ../../..
+      dockerfile: packages/web-ui/example/Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped

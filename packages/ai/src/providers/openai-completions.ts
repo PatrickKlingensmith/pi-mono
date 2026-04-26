@@ -11,7 +11,7 @@ import type {
 	ChatCompletionToolMessageParam,
 } from "openai/resources/chat/completions.js";
 import { getEnvApiKey } from "../env-api-keys.js";
-import { calculateCost, supportsXhigh } from "../models.js";
+import { calculateCost, getProviders, supportsXhigh } from "../models.js";
 import type {
 	AssistantMessage,
 	CacheRetention,
@@ -401,11 +401,12 @@ export const streamSimpleOpenAICompletions: StreamFunction<"openai-completions",
 	options?: SimpleStreamOptions,
 ): AssistantMessageEventStream => {
 	const apiKey = options?.apiKey || getEnvApiKey(model.provider);
-	if (!apiKey) {
+	if (!apiKey && (getProviders() as string[]).includes(model.provider)) {
 		throw new Error(`No API key for provider: ${model.provider}`);
 	}
-
-	const base = buildBaseOptions(model, options, apiKey);
+	// Local/custom providers (Ollama, llama.cpp, vLLM, etc.) don't require auth.
+	// Use a placeholder so the OpenAI SDK initialises cleanly; the server ignores it.
+	const base = buildBaseOptions(model, options, apiKey || "no-auth-required");
 	const reasoningEffort = supportsXhigh(model) ? options?.reasoning : clampReasoning(options?.reasoning);
 	const toolChoice = (options as OpenAICompletionsOptions | undefined)?.toolChoice;
 

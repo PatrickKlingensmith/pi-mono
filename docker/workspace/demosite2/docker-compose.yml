@@ -1,0 +1,16 @@
+# docker-compose.yml
+
+version: '3.8'
+
+services:
+  web:
+    # Build the image using the Dockerfile in the current directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deosite2_web
+    ports:
+      # Map local port 8080 to container port 80
+      - "8080:80"
+    # Restart the container if it fails
+    restart: always

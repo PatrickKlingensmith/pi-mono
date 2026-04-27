@@ -119,6 +119,10 @@ export class ServerAgent {
 	private _connectionReady: Promise<void>;
 	private _statusListeners = new Set<(status: ConnectionStatus) => void>();
 	private _status: ConnectionStatus = "connecting";
+	// When a user-with-attachments message is sent, store it so we can swap it in
+	// when the agent fires message_end for the user message (which arrives as a
+	// plain user role message without the attachment preview metadata).
+	private _pendingUserMessage: AgentMessage | undefined;
 
 	constructor(private readonly serverUrl: string) {
 		this._state = new ServerAgentState((model, level) => {
@@ -164,6 +168,36 @@ export class ServerAgent {
 		_images?: ImageContent[],
 	): Promise<void> {
 		await this._connectionReady;
+
+		const msg = Array.isArray(input) ? input[0] : input;
+
+		// user-with-attachments: extract text + convert attachments to ImageContent blocks.
+		// Store the original message so _applyEvent can swap it in when the agent fires
+		// message_end for the user turn (keeping the image preview in the UI).
+		if (msg && typeof msg !== "string" && (msg as any).role === "user-with-attachments") {
+			const uwv = msg as any;
+			const text: string = typeof uwv.content === "string" ? uwv.content
+				: (uwv.content as any[]).filter((c: any) => c.type === "text").map((c: any) => c.text ?? "").join(" ");
+
+			const images: Array<{ type: string; data: string; mimeType: string }> = [];
+			if (Array.isArray(uwv.attachments)) {
+				for (const att of uwv.attachments) {
+					if (att.type === "image") {
+						images.push({ type: "image", data: att.content, mimeType: att.mimeType });
+					}
+				}
+			}
+
+			// Store original for display swap; don't mirror manually — the agent's
+			// message_end event will add the user message and we'll replace it there.
+			this._pendingUserMessage = uwv as unknown as AgentMessage;
+
+			return new Promise<void>((resolve, reject) => {
+				this._promptResolve = resolve;
+				this._promptReject = reject;
+				this._send({ type: "prompt", text, images: images.length ? images : undefined });
+			});
+		}
 
 		const text = extractPromptText(input);
 		if (!text.trim()) return;
@@ -365,10 +399,21 @@ export class ServerAgent {
 				this._state.streamingMessage = event.message;
 				break;
 
-			case "message_end":
+			case "message_end": {
 				this._state.streamingMessage = undefined;
-				this._state.messages = [...this._state.messages, event.message];
+				// If the server is delivering the user message and we have the original
+				// user-with-attachments (which carries the image preview), swap it in so
+				// the UI shows the image rather than a bare text bubble.
+				const displayMsg =
+					(event.message as any).role === "user" && this._pendingUserMessage
+						? this._pendingUserMessage
+						: event.message;
+				if ((event.message as any).role === "user") {
+					this._pendingUserMessage = undefined;
+				}
+				this._state.messages = [...this._state.messages, displayMsg];
 				break;
+			}
 
 			case "tool_execution_start":
 				this._pendingToolCallsSet.add(event.toolCallId);

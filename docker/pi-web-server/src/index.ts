@@ -50,7 +50,7 @@ const MIME: Record<string, string> = {
 
 /** Messages from browser to server */
 type BrowserMessage =
-	| { type: "prompt"; text: string }
+	| { type: "prompt"; text: string; images?: Array<{ type: string; data: string; mimeType: string }> }
 	| { type: "abort" }
 	| { type: "set_model"; provider: string; modelId: string }
 	| { type: "set_thinking_level"; level: string }
@@ -197,7 +197,12 @@ async function handleAgentConnection(ws: WebSocket): Promise<void> {
 				case "prompt": {
 					const text = String((msg as any).text ?? "").trim();
 					if (!text) return;
-					await session.prompt(text);
+					const images = (msg as any).images as Array<{ type: string; data: string; mimeType: string }> | undefined;
+					if (images && images.length > 0) {
+						await session.prompt(text, { images: images as any });
+					} else {
+						await session.prompt(text);
+					}
 					break;
 				}
 

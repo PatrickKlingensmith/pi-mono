@@ -40,4 +40,4 @@ plans/
 sessions/
 docker/workspace/
 collect.sh
-
+docker/workspace.bak/

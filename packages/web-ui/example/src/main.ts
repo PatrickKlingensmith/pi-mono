@@ -9,7 +9,6 @@ import {
 	CustomProvidersStore,
 	createJavaScriptReplTool,
 	IndexedDBStorageBackend,
-	// PersistentStorageDialog, // TODO: Fix - currently broken
 	ProviderKeysStore,
 	ProvidersModelsTab,
 	ProxyTab,
@@ -20,12 +19,13 @@ import {
 	setAppStorage,
 } from "@mariozechner/pi-web-ui";
 import { html, render } from "lit";
-import { Bell, History, Plus, Settings } from "lucide";
+import { Bell, History, Plus, Server, Settings, Wifi, WifiOff } from "lucide";
 import "./app.css";
 import { icon } from "@mariozechner/mini-lit";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
 import { Input } from "@mariozechner/mini-lit/dist/Input.js";
 import { createSystemNotification, customConvertToLlm, registerCustomMessageRenderers } from "./custom-messages.js";
+import { ServerAgent, type ConnectionStatus } from "./server-agent.js";
 
 // Register custom message renderers
 registerCustomMessageRenderers();
@@ -48,7 +48,7 @@ const configs = [
 // Create backend
 const backend = new IndexedDBStorageBackend({
 	dbName: "pi-web-ui-example",
-	version: 2, // Incremented for custom-providers store
+	version: 2,
 	stores: configs,
 });
 
@@ -65,9 +65,46 @@ setAppStorage(storage);
 let currentSessionId: string | undefined;
 let currentTitle = "";
 let isEditingTitle = false;
-let agent: Agent;
+let agent: Agent | ServerAgent;
 let chatPanel: ChatPanel;
 let agentUnsubscribe: (() => void) | undefined;
+let serverMode = false;
+let serverWsUrl = "";
+let connectionStatus: ConnectionStatus = "disconnected";
+
+// ============================================================================
+// Server mode detection
+// ============================================================================
+
+interface ServerInfo {
+	wsUrl: string;
+	version: string;
+}
+
+async function detectServer(): Promise<ServerInfo | null> {
+	// Check URL param first: ?server=ws://host:3000/agent
+	const urlParams = new URLSearchParams(window.location.search);
+	const serverParam = urlParams.get("server");
+	if (serverParam) {
+		return { wsUrl: serverParam, version: "unknown" };
+	}
+
+	// Try to auto-detect: hit /api/info on the current origin
+	try {
+		const res = await fetch(`${window.location.origin}/api/info`, { signal: AbortSignal.timeout(2000) });
+		if (res.ok) {
+			const info = (await res.json()) as ServerInfo;
+			if (info.wsUrl) return info;
+		}
+	} catch {
+		// Not running behind pi-web-server — use direct mode
+	}
+	return null;
+}
+
+// ============================================================================
+// Session helpers (shared between direct and server mode)
+// ============================================================================
 
 const generateTitle = (messages: AgentMessage[]): string => {
 	const firstUserMsg = messages.find((m) => m.role === "user" || m.role === "user-with-attachments");
@@ -106,7 +143,6 @@ const saveSession = async () => {
 	if (!shouldSaveSession(state.messages)) return;
 
 	try {
-		// Create session data
 		const sessionData = {
 			id: currentSessionId,
 			title: currentTitle,
@@ -117,7 +153,6 @@ const saveSession = async () => {
 			lastModified: new Date().toISOString(),
 		};
 
-		// Create session metadata
 		const metadata = {
 			id: currentSessionId,
 			title: currentTitle,
@@ -130,13 +165,7 @@ const saveSession = async () => {
 				cacheRead: 0,
 				cacheWrite: 0,
 				totalTokens: 0,
-				cost: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
-					cacheWrite: 0,
-					total: 0,
-				},
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 			},
 			modelId: state.model?.id || null,
 			thinkingLevel: state.thinkingLevel,
@@ -155,12 +184,67 @@ const updateUrl = (sessionId: string) => {
 	window.history.replaceState({}, "", url);
 };
 
-const createAgent = async (initialState?: Partial<AgentState>) => {
-	if (agentUnsubscribe) {
-		agentUnsubscribe();
-	}
+// ============================================================================
+// Agent creation — server mode
+// ============================================================================
 
-	agent = new Agent({
+const createServerModeAgent = async (wsUrl: string) => {
+	if (agentUnsubscribe) agentUnsubscribe();
+
+	const serverAgent = new ServerAgent(wsUrl);
+
+	// Track connection status for header badge
+	agentUnsubscribe = serverAgent.onConnectionStatus((status) => {
+		connectionStatus = status;
+		renderApp();
+	});
+
+	// Subscribe to agent events for session saving and title generation
+	serverAgent.subscribe((event) => {
+		if (event.type === "agent_end") {
+			const messages = serverAgent.state.messages;
+
+			if (!currentTitle && shouldSaveSession(messages)) {
+				currentTitle = generateTitle(messages);
+			}
+			if (!currentSessionId && shouldSaveSession(messages)) {
+				currentSessionId = crypto.randomUUID();
+				updateUrl(currentSessionId);
+			}
+			if (currentSessionId) {
+				saveSession();
+			}
+			renderApp();
+		}
+	});
+
+	// Wait for WebSocket connection so state.model and availableModels are populated
+	// before ChatPanel reads them (fixes blank model selector on first load).
+	await serverAgent.waitForConnection();
+
+	// Pass to ChatPanel — cast needed because ServerAgent is structurally compatible
+	// but not a subclass of Agent. Tools factory is omitted: tools run server-side.
+	await chatPanel.setAgent(serverAgent as unknown as Agent, {
+		onApiKeyRequired: async (_provider: string) => {
+			// API keys are managed server-side; tell the UI it succeeded
+			return true;
+		},
+		availableModels: serverAgent.availableModels,
+		// No toolsFactory: the server provides all tools (bash, read, write, edit, etc.)
+	});
+
+	agent = serverAgent;
+	connectionStatus = serverAgent.connectionStatus;
+};
+
+// ============================================================================
+// Agent creation — direct mode (browser calls LLM APIs directly)
+// ============================================================================
+
+const createDirectAgent = async (initialState?: Partial<AgentState>) => {
+	if (agentUnsubscribe) agentUnsubscribe();
+
+	const directAgent = new Agent({
 		initialState: initialState || {
 			systemPrompt: `You are a helpful AI assistant with access to various tools.
 
@@ -174,46 +258,44 @@ Feel free to use these tools when needed to provide accurate and helpful respons
 			messages: [],
 			tools: [],
 		},
-		// Custom transformer: convert custom messages to LLM-compatible format
 		convertToLlm: customConvertToLlm,
 	});
 
-	agentUnsubscribe = agent.subscribe((event: any) => {
-		if (event.type === "state-update") {
-			const messages = event.state.messages;
-
-			// Generate title after first successful response
+	// Subscribe to agent_end for session saving (replaces broken "state-update" listener)
+	agentUnsubscribe = directAgent.subscribe((event) => {
+		if (event.type === "agent_end") {
+			const messages = directAgent.state.messages;
 			if (!currentTitle && shouldSaveSession(messages)) {
 				currentTitle = generateTitle(messages);
 			}
-
-			// Create session ID on first successful save
 			if (!currentSessionId && shouldSaveSession(messages)) {
 				currentSessionId = crypto.randomUUID();
 				updateUrl(currentSessionId);
 			}
-
-			// Auto-save
 			if (currentSessionId) {
 				saveSession();
 			}
-
 			renderApp();
 		}
 	});
 
-	await chatPanel.setAgent(agent, {
+	await chatPanel.setAgent(directAgent, {
 		onApiKeyRequired: async (provider: string) => {
 			return await ApiKeyPromptDialog.prompt(provider);
 		},
 		toolsFactory: (_agent, _agentInterface, _artifactsPanel, runtimeProvidersFactory) => {
-			// Create javascript_repl tool with access to attachments + artifacts
 			const replTool = createJavaScriptReplTool();
 			replTool.runtimeProvidersFactory = runtimeProvidersFactory;
 			return [replTool];
 		},
 	});
+
+	agent = directAgent;
 };
+
+// ============================================================================
+// Session loading
+// ============================================================================
 
 const loadSession = async (sessionId: string): Promise<boolean> => {
 	if (!storage.sessions) return false;
@@ -228,12 +310,17 @@ const loadSession = async (sessionId: string): Promise<boolean> => {
 	const metadata = await storage.sessions.getMetadata(sessionId);
 	currentTitle = metadata?.title || "";
 
-	await createAgent({
-		model: sessionData.model,
-		thinkingLevel: sessionData.thinkingLevel,
-		messages: sessionData.messages,
-		tools: [],
-	});
+	if (serverMode) {
+		// Server mode: start fresh (server manages its own session history)
+		await createServerModeAgent(serverWsUrl);
+	} else {
+		await createDirectAgent({
+			model: sessionData.model,
+			thinkingLevel: sessionData.thinkingLevel,
+			messages: sessionData.messages,
+			tools: [],
+		});
+	}
 
 	updateUrl(sessionId);
 	renderApp();
@@ -249,15 +336,31 @@ const newSession = () => {
 // ============================================================================
 // RENDER
 // ============================================================================
+
 const renderApp = () => {
 	const app = document.getElementById("app");
 	if (!app) return;
+
+	const statusBadge = serverMode
+		? html`
+			<span class="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+				connectionStatus === "connected"
+					? "bg-green-500/15 text-green-600"
+					: connectionStatus === "connecting"
+						? "bg-yellow-500/15 text-yellow-600"
+						: "bg-red-500/15 text-red-600"
+			}">
+				${icon(connectionStatus === "connected" ? Wifi : WifiOff, "xs")}
+				${connectionStatus === "connected" ? "agent" : connectionStatus}
+			</span>
+		`
+		: html``;
 
 	const appHtml = html`
 		<div class="w-full h-screen flex flex-col bg-background text-foreground overflow-hidden">
 			<!-- Header -->
 			<div class="flex items-center justify-between border-b border-border shrink-0">
-				<div class="flex items-center gap-2 px-4 py-">
+				<div class="flex items-center gap-2 px-4 py-1">
 					${Button({
 						variant: "ghost",
 						size: "sm",
@@ -268,7 +371,6 @@ const renderApp = () => {
 									await loadSession(sessionId);
 								},
 								(deletedSessionId) => {
-									// Only reload if the current session was deleted
 									if (deletedSessionId === currentSessionId) {
 										newSession();
 									}
@@ -335,34 +437,41 @@ const renderApp = () => {
 								>
 									${currentTitle}
 								</button>`
-							: html`<span class="text-base font-semibold text-foreground">Pi Web UI Example</span>`
+							: html`<span class="flex items-center gap-2 text-base font-semibold text-foreground">
+								${serverMode ? icon(Server, "sm") : ""}
+								${serverMode ? "Pi Agent" : "Pi Web UI"}
+								${statusBadge}
+							</span>`
 					}
 				</div>
 				<div class="flex items-center gap-1 px-2">
-					${Button({
-						variant: "ghost",
-						size: "sm",
-						children: icon(Bell, "sm"),
-						onClick: () => {
-							// Demo: Inject custom message (will appear on next agent run)
-							if (agent) {
-								agent.steer(
-									createSystemNotification(
-										"This is a custom message! It appears in the UI but is never sent to the LLM.",
-									),
-								);
-							}
-						},
-						title: "Demo: Add Custom Notification",
-					})}
+					${!serverMode
+						? Button({
+								variant: "ghost",
+								size: "sm",
+								children: icon(Bell, "sm"),
+								onClick: () => {
+									if (agent) {
+										agent.steer(
+											createSystemNotification(
+												"This is a custom message! It appears in the UI but is never sent to the LLM.",
+											),
+										);
+									}
+								},
+								title: "Demo: Add Custom Notification",
+							})
+						: ""}
 					<theme-toggle></theme-toggle>
-					${Button({
-						variant: "ghost",
-						size: "sm",
-						children: icon(Settings, "sm"),
-						onClick: () => SettingsDialog.open([new ProvidersModelsTab(), new ProxyTab()]),
-						title: "Settings",
-					})}
+					${!serverMode
+						? Button({
+								variant: "ghost",
+								size: "sm",
+								children: icon(Settings, "sm"),
+								onClick: () => SettingsDialog.open([new ProvidersModelsTab(), new ProxyTab()]),
+								title: "Settings",
+							})
+						: ""}
 				</div>
 			</div>
 
@@ -377,11 +486,11 @@ const renderApp = () => {
 // ============================================================================
 // INIT
 // ============================================================================
+
 async function initApp() {
 	const app = document.getElementById("app");
 	if (!app) throw new Error("App container not found");
 
-	// Show loading
 	render(
 		html`
 			<div class="w-full h-screen flex items-center justify-center bg-background text-foreground">
@@ -391,28 +500,30 @@ async function initApp() {
 		app,
 	);
 
-	// TODO: Fix PersistentStorageDialog - currently broken
-	// Request persistent storage
-	// if (storage.sessions) {
-	// 	await PersistentStorageDialog.request();
-	// }
-
-	// Create ChatPanel
 	chatPanel = new ChatPanel();
 
-	// Check for session in URL
+	// Detect whether a pi-web-server is available
+	const serverInfo = await detectServer();
+	if (serverInfo) {
+		serverMode = true;
+		serverWsUrl = serverInfo.wsUrl;
+		console.log("[pi] server mode — WebSocket:", serverWsUrl);
+	}
+
 	const urlParams = new URLSearchParams(window.location.search);
 	const sessionIdFromUrl = urlParams.get("session");
 
-	if (sessionIdFromUrl) {
+	if (serverMode) {
+		// Server mode: always create a fresh connection (server handles persistence)
+		await createServerModeAgent(serverWsUrl);
+	} else if (sessionIdFromUrl) {
 		const loaded = await loadSession(sessionIdFromUrl);
 		if (!loaded) {
-			// Session doesn't exist, redirect to new session
 			newSession();
 			return;
 		}
 	} else {
-		await createAgent();
+		await createDirectAgent();
 	}
 
 	renderApp();

@@ -59,6 +59,7 @@ export class ModelSelector extends DialogBase {
 
 	private onSelectCallback?: (model: Model<any>) => void;
 	private allowedProviders?: Set<string>;
+	private fixedModels?: Model<any>[];
 	private scrollContainerRef = createRef<HTMLDivElement>();
 	private searchInputRef = createRef<HTMLInputElement>();
 	private lastMousePosition = { x: 0, y: 0 };
@@ -69,6 +70,7 @@ export class ModelSelector extends DialogBase {
 		currentModel: Model<any> | null,
 		onSelect: (model: Model<any>) => void,
 		allowedProviders?: string[],
+		fixedModels?: Model<any>[],
 	) {
 		const selector = new ModelSelector();
 		selector.currentModel = currentModel;
@@ -76,8 +78,13 @@ export class ModelSelector extends DialogBase {
 		if (allowedProviders) {
 			selector.allowedProviders = new Set(allowedProviders);
 		}
+		if (fixedModels) {
+			selector.fixedModels = fixedModels;
+		}
 		selector.open();
-		selector.loadCustomProviders();
+		if (!fixedModels) {
+			selector.loadCustomProviders();
+		}
 	}
 
 	override async firstUpdated(changedProperties: PropertyValues): Promise<void> {
@@ -199,20 +206,26 @@ export class ModelSelector extends DialogBase {
 	}
 
 	private getFilteredModels(): Array<{ provider: string; id: string; model: any }> {
-		// Collect all models from known providers
 		const allModels: Array<{ provider: string; id: string; model: any }> = [];
-		const knownProviders = getProviders();
 
-		for (const provider of knownProviders) {
-			const models = getModels(provider as any);
-			for (const model of models) {
-				allModels.push({ provider, id: model.id, model });
+		if (this.fixedModels) {
+			// Server-provided model list: use only these, skip built-in discovery
+			for (const model of this.fixedModels) {
+				allModels.push({ provider: model.provider, id: model.id, model });
 			}
-		}
-
-		// Add custom provider models
-		for (const model of this.customProviderModels) {
-			allModels.push({ provider: model.provider, id: model.id, model });
+		} else {
+			// Collect all models from known providers
+			const knownProviders = getProviders();
+			for (const provider of knownProviders) {
+				const models = getModels(provider as any);
+				for (const model of models) {
+					allModels.push({ provider, id: model.id, model });
+				}
+			}
+			// Add custom provider models
+			for (const model of this.customProviderModels) {
+				allModels.push({ provider: model.provider, id: model.id, model });
+			}
 		}
 
 		// Filter by allowed providers if set

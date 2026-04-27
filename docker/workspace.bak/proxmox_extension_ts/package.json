@@ -1,0 +1,11 @@
+{
+  "name": "proxmox-explorer-extension",
+  "version": "1.0.0",
+  "description": "An extension for pi to query Proxmox API",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "latest",
+    "@sinclair/typebox": "latest",
+    "@mariozechner/pi-ai": "latest"
+  }
+}

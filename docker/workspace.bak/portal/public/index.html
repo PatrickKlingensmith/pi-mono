@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stark IT Consulting</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">Stark IT Consulting</div>
+    <div class="header-title">DISCOVER PLAYGROUND</div>
+    <button class="hamburger" aria-label="menu">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <main class="main">
+    <section class="slider-section">
+      <div class="slider" id="slider"></div>
+      <div class="drag-pill">DRAG</div>
+    </section>
+  </main>
+
+  <div class="tabbar hidden" id="tabbar">
+    <button class="home-btn" id="homeBtn">Home</button>
+    <button class="home-btn" id="fullscreenBtn">Open Window</button>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="overlay hidden" id="overlay">
+    <div class="tabcontent" id="tabcontent"></div>
+  </div>
+
+  <script src="/main.js" type="module"></script>
+</body>
+</html>

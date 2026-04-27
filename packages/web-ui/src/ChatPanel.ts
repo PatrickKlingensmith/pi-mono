@@ -3,6 +3,7 @@ import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "./components/AgentInterface.js";
 import type { Agent, AgentTool } from "@mariozechner/pi-agent-core";
+import type { Model } from "@mariozechner/pi-ai";
 import type { AgentInterface } from "./components/AgentInterface.js";
 import { ArtifactsRuntimeProvider } from "./components/sandbox/ArtifactsRuntimeProvider.js";
 import { AttachmentsRuntimeProvider } from "./components/sandbox/AttachmentsRuntimeProvider.js";
@@ -60,6 +61,7 @@ export class ChatPanel extends LitElement {
 			onBeforeSend?: () => void | Promise<void>;
 			onCostClick?: () => void;
 			onModelSelect?: () => void;
+			availableModels?: Model<any>[];
 			sandboxUrlProvider?: () => string;
 			toolsFactory?: (
 				agent: Agent,
@@ -80,6 +82,7 @@ export class ChatPanel extends LitElement {
 		this.agentInterface.showThemeToggle = false;
 		this.agentInterface.onApiKeyRequired = config?.onApiKeyRequired;
 		this.agentInterface.onModelSelect = config?.onModelSelect;
+		this.agentInterface.availableModels = config?.availableModels;
 		this.agentInterface.onBeforeSend = config?.onBeforeSend;
 		this.agentInterface.onCostClick = config?.onCostClick;
 

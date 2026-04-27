@@ -1,0 +1,10 @@
+{
+  "defaultProvider": "ollama_ubuntu26",
+  "defaultModel": "gemma4:e4b",
+  "lastChangelogVersion": "0.67.68",
+  "packages": [
+    "npm:@samfp/pi-memory",
+    "npm:@ollama/pi-web-search"
+  ],
+  "defaultThinkingLevel": "medium"
+}

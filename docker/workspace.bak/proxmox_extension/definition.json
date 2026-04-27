@@ -1,0 +1,19 @@
+{
+  "name": "proxmox_api_query",
+  "description": "A tool to query the Proxmox VE API for cluster resources, nodes, storage, and VM status. Requires a valid endpoint path.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "description": "The API endpoint path to query (e.g., '/cluster/resources', '/nodes', '/storage')."
+      },
+      "vmid": {
+        "type": "string",
+        "description": "Optional VMID if the endpoint requires it (e.g., for specific VM status)."
+      }
+    },
+    "required": ["endpoint"]
+  },
+  "implementation": "python3 proxmox_extension/executor.py --endpoint {endpoint} --vmid {vmid}"
+}

@@ -1,4 +1,4 @@
-import { getProviders, streamSimple, type ToolResultMessage, type Usage } from "@mariozechner/pi-ai";
+import { getProviders, streamSimple, type Model, type ToolResultMessage, type Usage } from "@mariozechner/pi-ai";
 import { html, LitElement } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import { ModelSelector } from "../dialogs/ModelSelector.js";
@@ -34,6 +34,8 @@ export class AgentInterface extends LitElement {
 	@property({ attribute: false }) onCostClick?: () => void;
 	// Optional callback to override model selector behavior
 	@property({ attribute: false }) onModelSelect?: () => void;
+	// If set, the model selector shows only these models (used in server mode)
+	@property({ attribute: false }) availableModels?: Model<any>[];
 
 	// References
 	@query("message-editor") private _messageEditor!: MessageEditor;
@@ -398,7 +400,7 @@ export class AgentInterface extends LitElement {
 									ModelSelector.open(state.model, (model) => {
 										session.state.model = model;
 										this.requestUpdate();
-									});
+									}, undefined, this.availableModels);
 								}
 							}}
 							.onThinkingChange=${

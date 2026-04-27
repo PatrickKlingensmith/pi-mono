@@ -162,7 +162,7 @@ export class ChatPanel extends LitElement {
 	render() {
 		if (!this.agent || !this.agentInterface) {
 			return html`<div class="flex items-center justify-center h-full">
-				<div class="text-muted-foreground">No agent set</div>
+				<div class="text-muted-foreground">Connecting to agent…</div>
 			</div>`;
 		}
 

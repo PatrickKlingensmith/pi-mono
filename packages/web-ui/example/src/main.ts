@@ -218,12 +218,9 @@ const createServerModeAgent = async (wsUrl: string) => {
 		}
 	});
 
-	// Wait for WebSocket connection so state.model and availableModels are populated
-	// before ChatPanel reads them (fixes blank model selector on first load).
-	await serverAgent.waitForConnection();
-
-	// Pass to ChatPanel — cast needed because ServerAgent is structurally compatible
-	// but not a subclass of Agent. Tools factory is omitted: tools run server-side.
+	// Set the agent immediately so the chat panel renders right away.
+	// availableModels starts empty; once the server sends the initial handshake
+	// we push the real list in and request a re-render.
 	await chatPanel.setAgent(serverAgent as unknown as Agent, {
 		onApiKeyRequired: async (_provider: string) => {
 			// API keys are managed server-side; tell the UI it succeeded
@@ -235,6 +232,17 @@ const createServerModeAgent = async (wsUrl: string) => {
 
 	agent = serverAgent;
 	connectionStatus = serverAgent.connectionStatus;
+
+	// Once the server handshake arrives (model + availableModels populated),
+	// refresh the model selector without blocking the initial render.
+	serverAgent.waitForConnection().then(() => {
+		if (chatPanel.agentInterface) {
+			chatPanel.agentInterface.availableModels = serverAgent.availableModels;
+			chatPanel.agentInterface.requestUpdate();
+		}
+	}).catch(() => {
+		// Error is already surfaced via the connection status badge in the header.
+	});
 };
 
 // ============================================================================

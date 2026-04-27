@@ -107,6 +107,7 @@ export { createJavaScriptReplTool, javascriptReplTool } from "./tools/javascript
 export { renderCollapsibleHeader, renderHeader } from "./tools/renderer-registry.js";
 export { BashRenderer } from "./tools/renderers/BashRenderer.js";
 export { CalculateRenderer } from "./tools/renderers/CalculateRenderer.js";
+export { ComfyUIRenderer } from "./tools/renderers/ComfyUIRenderer.js";
 // Tool renderers
 export { DefaultRenderer } from "./tools/renderers/DefaultRenderer.js";
 export { GetCurrentTimeRenderer } from "./tools/renderers/GetCurrentTimeRenderer.js";

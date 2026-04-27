@@ -154,14 +154,15 @@ export async function loadAttachment(
 
 	// Check if it's an image
 	if (mimeType.startsWith("image/")) {
+		const resized = await resizeImage(arrayBuffer, mimeType);
 		return {
 			id,
 			type: "image",
 			fileName: detectedFileName,
-			mimeType,
+			mimeType: resized.mimeType,
 			size,
-			content: base64Content,
-			preview: base64Content, // For images, preview is the same as content
+			content: resized.base64,
+			preview: resized.base64,
 		};
 	}
 
@@ -198,6 +199,61 @@ export async function loadAttachment(
 	}
 
 	throw new Error(`Unsupported file type: ${mimeType}`);
+}
+
+const MAX_IMAGE_DIMENSION = 1024;
+
+async function resizeImage(
+	arrayBuffer: ArrayBuffer,
+	mimeType: string,
+): Promise<{ base64: string; mimeType: string }> {
+	return new Promise((resolve, reject) => {
+		const blob = new Blob([arrayBuffer], { type: mimeType });
+		const url = URL.createObjectURL(blob);
+		const img = new Image();
+
+		img.onload = () => {
+			URL.revokeObjectURL(url);
+
+			const { width, height } = img;
+			const longest = Math.max(width, height);
+
+			if (longest <= MAX_IMAGE_DIMENSION) {
+				// Already small enough — re-encode as JPEG for consistent format
+				const canvas = document.createElement("canvas");
+				canvas.width = width;
+				canvas.height = height;
+				const ctx = canvas.getContext("2d")!;
+				ctx.drawImage(img, 0, 0);
+				const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+				resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+				return;
+			}
+
+			const scale = MAX_IMAGE_DIMENSION / longest;
+			const canvas = document.createElement("canvas");
+			canvas.width = Math.round(width * scale);
+			canvas.height = Math.round(height * scale);
+			const ctx = canvas.getContext("2d")!;
+			ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+			const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+			resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+		};
+
+		img.onerror = () => {
+			URL.revokeObjectURL(url);
+			// Fall back to original base64 if canvas decode fails
+			const uint8 = new Uint8Array(arrayBuffer);
+			let binary = "";
+			const chunk = 0x8000;
+			for (let i = 0; i < uint8.length; i += chunk) {
+				binary += String.fromCharCode(...uint8.slice(i, i + chunk));
+			}
+			resolve({ base64: btoa(binary), mimeType });
+		};
+
+		img.src = url;
+	});
 }
 
 async function processPdf(

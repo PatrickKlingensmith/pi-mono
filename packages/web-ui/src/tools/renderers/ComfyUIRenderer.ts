@@ -1,6 +1,7 @@
+import { icon } from "@mariozechner/mini-lit";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { html } from "lit";
-import { Image } from "lucide";
+import { Download, Image } from "lucide";
 import { renderHeader } from "../renderer-registry.js";
 import type { ToolRenderer, ToolRenderResult } from "../types.js";
 
@@ -81,17 +82,27 @@ export class ComfyUIRenderer implements ToolRenderer<ComfyUIParams, any> {
 
 		if (base64) {
 			const src = `data:${mimeType};base64,${base64}`;
+			const ext = mimeType.split("/")[1] ?? "png";
+			const filename = `${prompt.slice(0, 60).replace(/[^a-z0-9]+/gi, "_")}.${ext}`;
 			return {
 				content: html`
 					<div class="space-y-2">
 						${renderHeader("complete", Image, prompt)}
-						<img
-							src=${src}
-							alt=${prompt}
-							class="w-full rounded-md object-contain"
-							style="max-height:600px"
-							loading="lazy"
-						/>
+						<div class="relative group">
+							<img
+								src=${src}
+								alt=${prompt}
+								class="w-full rounded-md object-contain"
+								style="max-height:600px"
+								loading="lazy"
+							/>
+							<a
+								href=${src}
+								download=${filename}
+								class="absolute top-2 right-2 p-1.5 rounded-md bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+								title="Download image"
+							>${icon(Download, "sm")}</a>
+						</div>
 					</div>
 				`,
 				isCustom: false,

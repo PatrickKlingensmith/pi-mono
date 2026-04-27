@@ -11,6 +11,15 @@ import { customElement, property } from "lit/decorators.js";
 import { renderTool } from "../tools/index.js";
 import type { Attachment } from "../utils/attachment-utils.js";
 import { formatUsage } from "../utils/format.js";
+
+function formatTimestamp(ts: number): string {
+	const d = new Date(ts);
+	return (
+		d.toLocaleDateString([], { month: "short", day: "numeric" }) +
+		", " +
+		d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+	);
+}
 import { i18n } from "../utils/i18n.js";
 import "./ThinkingBlock.js";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
@@ -59,7 +68,7 @@ export class UserMessage extends LitElement {
 				: this.message.content.find((c) => c.type === "text")?.text || "";
 
 		return html`
-			<div class="flex justify-start mx-4">
+			<div class="flex flex-col items-start mx-4 gap-0.5">
 				<div class="user-message-container py-2 px-4 rounded-xl">
 					<markdown-block .content=${content}></markdown-block>
 					${
@@ -76,6 +85,7 @@ export class UserMessage extends LitElement {
 							: ""
 					}
 				</div>
+				<div class="text-xs text-muted-foreground px-1">${formatTimestamp(this.message.timestamp)}</div>
 			</div>
 		`;
 	}
@@ -142,10 +152,19 @@ export class AssistantMessage extends LitElement {
 			<div>
 				${orderedParts.length ? html` <div class="px-4 flex flex-col gap-3">${orderedParts}</div> ` : ""}
 				${
-					this.message.usage && !this.isStreaming
-						? this.onCostClick
-							? html` <div class="px-4 mt-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors" @click=${this.onCostClick}>${formatUsage(this.message.usage)}</div> `
-							: html` <div class="px-4 mt-2 text-xs text-muted-foreground">${formatUsage(this.message.usage)}</div> `
+					!this.isStreaming
+						? html`
+							<div class="px-4 mt-2 flex items-center gap-3">
+								${
+									this.message.usage
+										? this.onCostClick
+											? html`<span class="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors" @click=${this.onCostClick}>${formatUsage(this.message.usage)}</span>`
+											: html`<span class="text-xs text-muted-foreground">${formatUsage(this.message.usage)}</span>`
+										: ""
+								}
+								<span class="text-xs text-muted-foreground">${formatTimestamp(this.message.timestamp)}</span>
+							</div>
+						`
 						: ""
 				}
 				${

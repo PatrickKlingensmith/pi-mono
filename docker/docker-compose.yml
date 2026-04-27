@@ -1,0 +1,57 @@
+services:
+  # ─────────────────────────────────────────────────────────────────────────
+  # pi-cli  — original interactive CLI container (unchanged)
+  # ─────────────────────────────────────────────────────────────────────────
+  pi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pi-agent
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    volumes:
+      - ./workspace:/workspace
+      - ./pi-config:/root/.pi/agent
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: America/Chicago
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # pi-web  — web UI + coding-agent WebSocket backend
+  #
+  #   http://localhost:3000   → web chat interface
+  #   ws://localhost:3000/agent → coding-agent WebSocket (used internally)
+  #
+  # Shares the same workspace and pi-config as the CLI container.
+  # Mount /var/run/docker.sock to let the agent manage Docker containers.
+  # ─────────────────────────────────────────────────────────────────────────
+  pi-web:
+    build:
+      context: ..
+      dockerfile: docker/pi-web-server/Dockerfile
+    container_name: pi-web
+    ports:
+      - "8092:3000"
+    working_dir: /workspace
+    volumes:
+      - ./workspace:/workspace
+      - ./pi-config:/root/.pi/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: America/Chicago
+      PORT: "3000"
+      WORKSPACE_DIR: /workspace
+      AGENT_DIR: /root/.pi/agent
+      PUBLIC_DIR: /app/public
+      # PI_CODING_AGENT_DIR is the env var the SDK checks inside getAgentDir()
+      PI_CODING_AGENT_DIR: /root/.pi/agent
+      # API keys — set values in docker/.env (never commit that file)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    restart: unless-stopped

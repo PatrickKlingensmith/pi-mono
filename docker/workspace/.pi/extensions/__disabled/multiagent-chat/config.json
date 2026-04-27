@@ -1,0 +1,16 @@
+{
+  "ssh": {
+    "host": "192.168.50.191",
+    "username": "setup",
+    "port": 22,
+    "keyName": null,
+    "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nQyNTUxOQAAACDg2tXi68Kzi+WnshL2L2z60G2mmHhc64hEOdpIjqegQAAAAJC/lU+Yv5VP\nmAAAAAtzc2gtZWQyNTUxOQAAACDg2tXi68Kzi+WnshL2L2z60G2mmHhc64hEOdpIjqegQA\nAAAEBKyt9xSKfvWTwHRZS7KSsaw0wY/CSvc2qGW7oVVGvMI+Da1eLrwrOL5aeyEvYvbPrQ\nbaaYeFzriEQ52kiOp6BAAAAACGFpLWFnZW50AQIDBAU=\n-----END OPENSSH PRIVATE KEY-----",
+    "passphrase": null
+  },
+  "sysadmin": {
+    "baseUrl": null,
+    "apiKey": null
+  },
+  "publicHost": "192.168.50.191",
+  "publicPort": 3010
+}

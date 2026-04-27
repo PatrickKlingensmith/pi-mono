@@ -1,0 +1,7 @@
+{
+  "host": "TBD",
+  "port": 22,
+  "username": "setup",
+  "keyName": "ai_agent_key",
+  "notes": "Default SSH config for playground server. Update host when known."
+}

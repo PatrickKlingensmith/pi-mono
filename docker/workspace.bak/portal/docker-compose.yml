@@ -1,0 +1,26 @@
+version: "3.8"
+services:
+  portal:
+    build: .
+    image: showcase-portal:latest
+    container_name: showcase-portal
+    environment:
+      - PORT=8090
+      - PUBLIC_HOST=${PUBLIC_HOST:-localhost}
+      - DOCKER_SOCK=/var/run/docker.sock
+    ports:
+      - "8090:8090"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  multiagent-chat:
+    build:
+      context: ../multiagent-chat
+    image: multiagent-chat:latest
+    container_name: multiagent-chat
+    environment:
+      - PORT=3001
+    ports:
+      - "3010:3001"
+    restart: unless-stopped

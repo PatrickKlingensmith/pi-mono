@@ -1,0 +1,30 @@
+[*] Starting Proxmox Exploration at https://192.168.50.10/api2/json
+[*] Identity: read-only-agent@pve!piAgent
+--------------------------------------------------
+[+] Checking Proxmox Version...
+[+] Fetching Cluster Resources (All discovery)...
+[+] Fetching Cluster Nodes...
+[+] Fetching Storage...
+[+] Fetching Datacenter Info...
+
+==================================================
+EXPLORATION COMPLETE
+==================================================
+
+{
+    "version": {
+        "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "resources": {
+        "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "nodes": {
+        "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "storage": {
+        "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "datacenter": {
+        "error": "<urlopen error [Errno 111] Connection refused>"
+    }
+}

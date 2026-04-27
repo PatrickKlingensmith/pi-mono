@@ -1,0 +1,14 @@
+{
+  "name": "pi-sysadmin-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "pi extension to call the remote sysadmin API",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "^0.32.35"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

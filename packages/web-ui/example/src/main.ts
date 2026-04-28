@@ -19,13 +19,14 @@ import {
 	setAppStorage,
 } from "@mariozechner/pi-web-ui";
 import { html, render } from "lit";
-import { Bell, History, Plus, Server, Settings, Wifi, WifiOff } from "lucide";
+import { Bell, History, Monitor, Plus, Server, Settings, Wifi, WifiOff } from "lucide";
 import "./app.css";
 import { icon } from "@mariozechner/mini-lit";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
 import { Input } from "@mariozechner/mini-lit/dist/Input.js";
 import { createSystemNotification, customConvertToLlm, registerCustomMessageRenderers } from "./custom-messages.js";
 import { ServerAgent, type ConnectionStatus } from "./server-agent.js";
+import { PreviewPanel } from "@mariozechner/pi-web-ui";
 
 // Register custom message renderers
 registerCustomMessageRenderers();
@@ -67,10 +68,12 @@ let currentTitle = "";
 let isEditingTitle = false;
 let agent: Agent | ServerAgent;
 let chatPanel: ChatPanel;
+let previewPanel: PreviewPanel;
 let agentUnsubscribe: (() => void) | undefined;
 let serverMode = false;
 let serverWsUrl = "";
 let connectionStatus: ConnectionStatus = "disconnected";
+let showPreview = false;
 
 // ============================================================================
 // Server mode detection
@@ -453,6 +456,21 @@ const renderApp = () => {
 					}
 				</div>
 				<div class="flex items-center gap-1 px-2">
+					${serverMode
+						? Button({
+								variant: showPreview ? "secondary" : "ghost",
+								size: "sm",
+								children: icon(Monitor, "sm"),
+								onClick: () => {
+									showPreview = !showPreview;
+									if (previewPanel) {
+										previewPanel.collapsed = !showPreview;
+									}
+									renderApp();
+								},
+								title: showPreview ? "Hide workspace preview" : "Show workspace preview",
+							})
+						: ""}
 					${!serverMode
 						? Button({
 								variant: "ghost",
@@ -483,8 +501,13 @@ const renderApp = () => {
 				</div>
 			</div>
 
-			<!-- Chat Panel -->
-			${chatPanel}
+			<!-- Main content: optional preview panel + chat -->
+			<div class="flex flex-1 overflow-hidden min-h-0">
+				${serverMode
+					? html`${previewPanel}`
+					: ""}
+				<div class="flex-1 min-w-0 overflow-hidden">${chatPanel}</div>
+			</div>
 		</div>
 	`;
 
@@ -509,6 +532,18 @@ async function initApp() {
 	);
 
 	chatPanel = new ChatPanel();
+	previewPanel = new PreviewPanel();
+	previewPanel.collapsed = true;
+	previewPanel.onCollapse = () => {
+		showPreview = false;
+		previewPanel.collapsed = true;
+		renderApp();
+	};
+	previewPanel.onExpand = () => {
+		showPreview = true;
+		previewPanel.collapsed = false;
+		renderApp();
+	};
 
 	// Detect whether a pi-web-server is available
 	const serverInfo = await detectServer();

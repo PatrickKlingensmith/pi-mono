@@ -180,11 +180,21 @@ export class ServerAgent {
 				: (uwv.content as any[]).filter((c: any) => c.type === "text").map((c: any) => c.text ?? "").join(" ");
 
 			const images: Array<{ type: string; data: string; mimeType: string }> = [];
+			const files: Array<{ name: string; content: string; mimeType: string; extractedText?: string }> = [];
+
 			if (Array.isArray(uwv.attachments)) {
 				for (const att of uwv.attachments) {
 					if (att.type === "image") {
+						// Send to LLM for visual analysis AND save to disk
 						images.push({ type: "image", data: att.content, mimeType: att.mimeType });
 					}
+					// Every attachment (images included) goes to files so the server writes it to disk
+					files.push({
+						name: att.fileName,
+						content: att.content,
+						mimeType: att.mimeType,
+						extractedText: att.extractedText,
+					});
 				}
 			}
 
@@ -195,7 +205,12 @@ export class ServerAgent {
 			return new Promise<void>((resolve, reject) => {
 				this._promptResolve = resolve;
 				this._promptReject = reject;
-				this._send({ type: "prompt", text, images: images.length ? images : undefined });
+				this._send({
+					type: "prompt",
+					text,
+					images: images.length ? images : undefined,
+					files: files.length ? files : undefined,
+				});
 			});
 		}
 
@@ -349,6 +364,10 @@ export class ServerAgent {
 
 			case "event":
 				this._applyEvent(msg.event as AgentEvent).catch(console.error);
+				break;
+
+			case "preview_reload":
+				window.dispatchEvent(new CustomEvent("preview-reload"));
 				break;
 
 			case "error":

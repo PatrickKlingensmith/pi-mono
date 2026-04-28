@@ -198,7 +198,30 @@ export async function loadAttachment(
 		};
 	}
 
-	throw new Error(`Unsupported file type: ${mimeType}`);
+	// Catch-all: try to decode as UTF-8 text (handles SSH keys, logs, config files, etc.)
+	// Fall back to raw binary storage if the bytes aren't valid UTF-8.
+	try {
+		const decoder = new TextDecoder("utf-8", { fatal: true });
+		const text = decoder.decode(arrayBuffer);
+		return {
+			id,
+			type: "document",
+			fileName: detectedFileName,
+			mimeType: mimeType || "text/plain",
+			size,
+			content: base64Content,
+			extractedText: text,
+		};
+	} catch {
+		return {
+			id,
+			type: "document",
+			fileName: detectedFileName,
+			mimeType: mimeType || "application/octet-stream",
+			size,
+			content: base64Content,
+		};
+	}
 }
 
 const MAX_IMAGE_DIMENSION = 1024;

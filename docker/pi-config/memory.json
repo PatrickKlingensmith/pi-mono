@@ -27,6 +27,44 @@
         "vms_stats"
       ],
       "createdAt": "2026-04-28T04:13:45.640Z"
+    },
+    {
+      "id": "1777384029681",
+      "content": "Image provided by the user for later reference.",
+      "tags": [
+        "image",
+        "context"
+      ],
+      "createdAt": "2026-04-28T13:47:09.681Z"
+    },
+    {
+      "id": "1777384115159",
+      "content": "Image provided by the user for later reference.",
+      "tags": [
+        "image",
+        "context"
+      ],
+      "createdAt": "2026-04-28T13:48:35.159Z"
+    },
+    {
+      "id": "1777387378961",
+      "content": "Audio file for website use: /workspace/uploads/etherial.mp3",
+      "tags": [
+        "asset",
+        "audio",
+        "website"
+      ],
+      "createdAt": "2026-04-28T14:42:58.961Z"
+    },
+    {
+      "id": "1777387795429",
+      "content": "Image file path: /workspace/uploads/ian.png. Description: A close-up photo of a man (Ian) with dark, messy hair and intense blue eyes. He is wearing a dark, collared shirt and has a contemplative expression. This photo is intended for use on a webpage.",
+      "tags": [
+        "image",
+        "webpage_asset",
+        "photo"
+      ],
+      "createdAt": "2026-04-28T14:49:55.429Z"
     }
   ]
 }

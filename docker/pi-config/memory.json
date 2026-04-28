@@ -1,0 +1,32 @@
+{
+  "entries": [
+    {
+      "id": "1777343261725",
+      "content": "Playground VM Details:\n- IP Address: 192.168.50.191\n- Username: setup\n- Aliases: test vm, playground, sandbox",
+      "tags": [
+        "vm",
+        "environment",
+        "network"
+      ],
+      "createdAt": "2026-04-28T02:27:41.725Z"
+    },
+    {
+      "id": "1777344678567",
+      "content": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nDyNTUxOQAAACDg2tXi68Kzi+WnshL2L2z60G2mmHhc64hEOdpIjqegQAAAAJC/lU+Yv5VP\nmAAAAAtzc2gtZWQyNTUxOQAAACDg2tXi68Kzi+WnshL2L2z60G2mmHhc64hEOdpIjqegQA\nAAAEBKyt9xSKfvWTwHRZS7KSsaw0wY/CSvc2qGW7oVVGvMI+Da1eLrwrOL5aeyEvYvbPrQ\nbaaYeFzriEQ52kiOp6BAAAAACGFpLWFnZW50AQIDBAU=\n-----END OPENSSH PRIVATE KEY-----",
+      "tags": [
+        "ssh_key_test_vm",
+        "credentials"
+      ],
+      "createdAt": "2026-04-28T02:51:18.567Z"
+    },
+    {
+      "id": "1777349625640",
+      "content": "System Baseline Stats for 192.168.50.191 Setup User:\n- Load Average: 0.00, 0.00, 0.00 (Very low load)\n- Available RAM: 2.7 GiB (High availability)\n- Disk Usage (Root): 8% used (Ample capacity remaining)\n- Docker services active on ports: 80, 8080, 8090, 8081, 3001, 3010 (These ports are known deployment targets.)",
+      "tags": [
+        "system_baseline",
+        "vms_stats"
+      ],
+      "createdAt": "2026-04-28T04:13:45.640Z"
+    }
+  ]
+}

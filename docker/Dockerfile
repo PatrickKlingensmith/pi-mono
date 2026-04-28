@@ -50,8 +50,6 @@ RUN mkdir -p /etc/apt/keyrings \
     && npm --version \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @samfp/pi-memory
-RUN npm install -g @ollama/pi-web-search
 RUN npm install -g @mariozechner/pi-coding-agent
 
 WORKDIR /workspace

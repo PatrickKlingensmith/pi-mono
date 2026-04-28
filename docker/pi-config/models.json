@@ -7,19 +7,23 @@
       "models": [
         {
           "id": "gemma4:26b",
-          "name": "gemma4 26b (ubuntu26)"
+          "name": "gemma4 26b (ubuntu26)",
+          "input": ["text", "image"]
         },
         {
           "id": "gemma4:e4b",
-          "name": "gemma4 e4b (ubuntu26)"
+          "name": "gemma4 e4b (ubuntu26)",
+          "input": ["text", "image"]
         },
         {
           "id": "gemma4:31b",
-          "name": "gemma4 31b (ubuntu26)"
+          "name": "gemma4 31b (ubuntu26)",
+          "input": ["text", "image"]
         },
-      	{
+        {
           "id": "qwen3.6:35b",
-          "name": "qwen3.6:35b (ubuntu26)"
+          "name": "qwen3.6:35b (ubuntu26)",
+          "input": ["text", "image"]
         }
       ]
     },
@@ -28,15 +32,15 @@
       "api": "openai-completions",
       "apiKey": "OPENAI_API_KEY",
       "models": [
-        { 
-        "id": "gpt-5.4", 
-        "name": "GPT-5.4"
+        {
+          "id": "gpt-5.4",
+          "name": "GPT-5.4"
         },
         {
-        "id": "gpt-5.4-mini",
-        "name": "GPT-5.4-mini"
+          "id": "gpt-5.4-mini",
+          "name": "GPT-5.4-mini"
         }
-      ]	
+      ]
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "defaultProvider": "ollama_ubuntu26",
   "defaultModel": "gemma4:e4b",
-  "lastChangelogVersion": "0.67.68",
+  "lastChangelogVersion": "0.70.2",
   "packages": [
     "npm:@samfp/pi-memory",
     "npm:@ollama/pi-web-search"

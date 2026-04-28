@@ -26,7 +26,7 @@ async function generateImage(
     scheduler?: string;
     seed?: number;
   } = {},
-): Promise<{ imageData: string; promptId: string }> {
+): Promise<{ imageData: string; promptId: string; base64: string; mimeType: string }> {
   const {
     negativePrompt = "",
     width = 1024,
@@ -349,17 +349,12 @@ export default function (pi: ExtensionAPI) {
             return {
               content: [
                 { type: "text", text: `${summary}\n\n${trunc.content}` },
-                {
-                  type: "image",
-                  source: {
-                    type: "base64",
-                    mediaType: result.mimeType,
-                    data: result.base64,
-                  },
-                },
+                // Image is in details only — LLM context never receives raw base64
               ],
               details: {
                 raw: { summary, promptId: result.promptId, imageDataLength: result.imageData.length },
+                imageBase64: result.base64,
+                imageMimeType: result.mimeType,
               },
             };
           }

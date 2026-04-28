@@ -889,9 +889,11 @@ export function convertMessages(
 				}
 				params.push(toolResultMsg);
 
+				// Skip large tool-result images (e.g. ComfyUI 1024×1024 PNG) — Ollama returns 400 for oversized base64.
+				const MAX_TOOL_IMAGE_BASE64 = 1_000_000; // ~750 KB raw
 				if (hasImages && model.input.includes("image")) {
 					for (const block of toolMsg.content) {
-						if (isImageContentBlock(block)) {
+						if (isImageContentBlock(block) && block.data && block.data.length <= MAX_TOOL_IMAGE_BASE64) {
 							imageBlocks.push({
 								type: "image_url",
 								image_url: {

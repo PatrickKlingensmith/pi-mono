@@ -69,12 +69,11 @@ export class ComfyUIRenderer implements ToolRenderer<ComfyUIParams, any> {
 			};
 		}
 
-		// Success — look for the image content block.
-		// Handle both pi-ai format { data, mimeType } and legacy Anthropic SDK
-		// format { source: { data, mediaType } } that older extension code may return.
+		// Success — image is in details.imageBase64 (preferred) or content image block (legacy).
 		const imageBlock = result.content?.find((c: any) => c.type === "image") as any;
-		const base64 = imageBlock?.data ?? imageBlock?.source?.data;
+		const base64 = result.details?.imageBase64 ?? imageBlock?.data ?? imageBlock?.source?.data;
 		const mimeType =
+			result.details?.imageMimeType ??
 			imageBlock?.mimeType ??
 			imageBlock?.source?.mediaType ??
 			imageBlock?.source?.media_type ??

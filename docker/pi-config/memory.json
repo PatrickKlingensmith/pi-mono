@@ -27,6 +27,55 @@
         "vms_stats"
       ],
       "createdAt": "2026-04-28T04:13:45.640Z"
+    },
+    {
+      "id": "1777351804330",
+      "content": "Test VM SSH user: setup",
+      "tags": [
+        "env",
+        "vm",
+        "ssh"
+      ],
+      "createdAt": "2026-04-28T04:50:04.330Z"
+    },
+    {
+      "id": "1777351805737",
+      "content": "Test VM host/IP: 192.168.50.191",
+      "tags": [
+        "env",
+        "vm",
+        "ssh"
+      ],
+      "createdAt": "2026-04-28T04:50:05.737Z"
+    },
+    {
+      "id": "1777351808179",
+      "content": "Test VM SSH key path: /workspace/.ssh/agent_key",
+      "tags": [
+        "env",
+        "vm",
+        "ssh"
+      ],
+      "createdAt": "2026-04-28T04:50:08.179Z"
+    },
+    {
+      "id": "1777351809751",
+      "content": "Test VM workspace path: /home/setup/agent-workspace/",
+      "tags": [
+        "env",
+        "vm"
+      ],
+      "createdAt": "2026-04-28T04:50:09.751Z"
+    },
+    {
+      "id": "1777351811435",
+      "content": "Natura Élite container runs on port 8082 on the test VM.",
+      "tags": [
+        "deploy",
+        "ports",
+        "vm"
+      ],
+      "createdAt": "2026-04-28T04:50:11.435Z"
     }
   ]
 }

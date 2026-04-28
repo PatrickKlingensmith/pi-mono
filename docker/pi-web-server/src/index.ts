@@ -13,7 +13,7 @@
  */
 
 import { AuthStorage, ModelRegistry, createAgentSession } from "@mariozechner/pi-coding-agent";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, watch } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,11 +37,19 @@ const MIME: Record<string, string> = {
 	".json": "application/json",
 	".svg": "image/svg+xml",
 	".png": "image/png",
+	".jpg": "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif": "image/gif",
+	".webp": "image/webp",
 	".ico": "image/x-icon",
 	".woff": "font/woff",
 	".woff2": "font/woff2",
 	".ttf": "font/ttf",
 	".map": "application/json",
+	".ts": "text/plain; charset=utf-8",
+	".tsx": "text/plain; charset=utf-8",
+	".md": "text/plain; charset=utf-8",
+	".txt": "text/plain; charset=utf-8",
 };
 
 // ---------------------------------------------------------------------------
@@ -61,10 +69,17 @@ type ServerMessage =
 	| { type: "connected"; model: unknown; thinkingLevel: string; messages: unknown[]; availableModels: unknown[] }
 	| { type: "event"; event: unknown }
 	| { type: "state"; model: unknown; thinkingLevel: string; messages: unknown[] }
-	| { type: "error"; message: string };
+	| { type: "error"; message: string }
+	| { type: "preview_reload" };
 
 // ---------------------------------------------------------------------------
-// HTTP server (static files + /api/info)
+// Connected clients (for broadcasting preview_reload)
+// ---------------------------------------------------------------------------
+
+const allClients = new Set<WebSocket>();
+
+// ---------------------------------------------------------------------------
+// HTTP server (static files + /api/info + /preview/*)
 // ---------------------------------------------------------------------------
 
 const httpServer = createServer((req, res) => {
@@ -81,6 +96,46 @@ const httpServer = createServer((req, res) => {
 			"Access-Control-Allow-Origin": "*",
 		});
 		res.end(JSON.stringify({ wsUrl: `${wsProto}://${host}/agent`, version: "1.0.0" }));
+		return;
+	}
+
+	// Workspace file preview — serve files from WORKSPACE_DIR
+	if (urlPath.startsWith("/preview/") || urlPath === "/preview") {
+		const relative = urlPath.slice("/preview".length).replace(/^\//, "");
+		const safePath = relative.replace(/\.\./g, "").replace(/\/+/g, "/");
+		let filePath = join(WORKSPACE_DIR, safePath);
+
+		if (!filePath.startsWith(WORKSPACE_DIR)) {
+			res.writeHead(403);
+			res.end("Forbidden");
+			return;
+		}
+
+		// If path is a directory, try index.html inside it
+		try {
+			const st = existsSync(filePath) ? statSync(filePath) : null;
+			if (st?.isDirectory()) {
+				filePath = join(filePath, "index.html");
+			}
+		} catch {
+			// stat failed — fall through to 404
+		}
+
+		if (!existsSync(filePath)) {
+			res.writeHead(404, { "Content-Type": "text/plain" });
+			res.end("Not found");
+			return;
+		}
+
+		try {
+			const content = readFileSync(filePath);
+			const mime = MIME[extname(filePath)] ?? "application/octet-stream";
+			res.writeHead(200, { "Content-Type": mime, "Cache-Control": "no-cache" });
+			res.end(content);
+		} catch {
+			res.writeHead(500);
+			res.end("Error reading file");
+		}
 		return;
 	}
 
@@ -113,6 +168,8 @@ const wss = new WebSocketServer({ server: httpServer, path: "/agent" });
 wss.on("connection", (ws: WebSocket, req) => {
 	const clientAddr = req.socket.remoteAddress ?? "unknown";
 	console.log(`[ws] client connected from ${clientAddr}`);
+	allClients.add(ws);
+	ws.on("close", () => allClients.delete(ws));
 	handleAgentConnection(ws).catch((err) => {
 		console.error("[ws] unhandled error in connection handler:", err);
 	});
@@ -261,6 +318,31 @@ async function handleAgentConnection(ws: WebSocket): Promise<void> {
 		console.error("[ws] socket error:", err.message);
 		unsubscribe?.();
 	});
+}
+
+// ---------------------------------------------------------------------------
+// Workspace file watcher — broadcast preview_reload on changes
+// ---------------------------------------------------------------------------
+
+let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+
+try {
+	watch(WORKSPACE_DIR, { recursive: true }, (_event, filename) => {
+		// Ignore hidden files and node_modules
+		if (filename && (filename.includes("node_modules") || filename.startsWith("."))) return;
+		clearTimeout(reloadTimer);
+		reloadTimer = setTimeout(() => {
+			const msg = JSON.stringify({ type: "preview_reload" });
+			for (const client of allClients) {
+				if (client.readyState === 1 /* OPEN */) {
+					try { client.send(msg); } catch { /* ignore */ }
+				}
+			}
+		}, 300);
+	});
+	console.log(`[watcher] watching ${WORKSPACE_DIR} for changes`);
+} catch (err) {
+	console.warn("[watcher] could not watch workspace:", err);
 }
 
 // ---------------------------------------------------------------------------

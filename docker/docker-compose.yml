@@ -31,7 +31,9 @@ services:
   # Mount /var/run/docker.sock to let the agent manage Docker containers.
   # ─────────────────────────────────────────────────────────────────────────
   pi-web:
-    image: 314623751188.dkr.ecr.us-east-1.amazonaws.com/pi-web:latest
+    build:
+      context: ..
+      dockerfile: docker/pi-web-server/Dockerfile
     container_name: pi-web
     ports:
       - "8092:3000"

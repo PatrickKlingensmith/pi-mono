@@ -1,4 +1,3 @@
-import "@mariozechner/mini-lit/dist/ThemeToggle.js";
 import { Agent, type AgentMessage } from "@mariozechner/pi-agent-core";
 import { getModel } from "@mariozechner/pi-ai";
 import {
@@ -19,7 +18,7 @@ import {
 	setAppStorage,
 } from "@mariozechner/pi-web-ui";
 import { html, render } from "lit";
-import { Bell, History, Monitor, Plus, Server, Settings, Wifi, WifiOff } from "lucide";
+import { Bell, History, Monitor, Moon, Plus, Server, Settings, Sun, Wifi, WifiOff } from "lucide";
 import "./app.css";
 import { icon } from "@mariozechner/mini-lit";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
@@ -62,6 +61,18 @@ sessions.setBackend(backend);
 // Create and set app storage
 const storage = new AppStorage(settings, providerKeys, sessions, customProviders, backend);
 setAppStorage(storage);
+
+// Theme — read stored pref, fall back to OS pref
+const storedTheme = localStorage.getItem("theme");
+let isDark = storedTheme ? storedTheme === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+document.documentElement.classList.toggle("dark", isDark);
+
+const toggleTheme = () => {
+	isDark = !isDark;
+	document.documentElement.classList.toggle("dark", isDark);
+	localStorage.setItem("theme", isDark ? "dark" : "light");
+	renderApp();
+};
 
 let currentSessionId: string | undefined;
 let currentTitle = "";
@@ -488,7 +499,13 @@ const renderApp = () => {
 								title: "Demo: Add Custom Notification",
 							})
 						: ""}
-					<theme-toggle></theme-toggle>
+					${Button({
+							variant: "ghost",
+							size: "sm",
+							children: icon(isDark ? Sun : Moon, "sm"),
+							onClick: toggleTheme,
+							title: isDark ? "Switch to light mode" : "Switch to dark mode",
+						})}
 					${!serverMode
 						? Button({
 								variant: "ghost",

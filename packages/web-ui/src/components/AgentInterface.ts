@@ -23,7 +23,6 @@ export class AgentInterface extends LitElement {
 	@property({ type: Boolean }) enableAttachments = true;
 	@property({ type: Boolean }) enableModelSelector = true;
 	@property({ type: Boolean }) enableThinkingSelector = true;
-	@property({ type: Boolean }) showThemeToggle = false;
 	// Optional custom API key prompt handler - if not provided, uses default dialog
 	@property({ attribute: false }) onApiKeyRequired?: (provider: string) => Promise<boolean>;
 	// Optional callback called before sending a message
@@ -351,7 +350,6 @@ export class AgentInterface extends LitElement {
 		return html`
 			<div class="text-xs text-muted-foreground flex justify-between items-center h-5">
 				<div class="flex items-center gap-1">
-					${this.showThemeToggle ? html`<theme-toggle></theme-toggle>` : html``}
 				</div>
 				<div class="flex ml-auto items-center gap-3">
 					${

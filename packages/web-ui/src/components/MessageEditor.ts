@@ -5,7 +5,7 @@ import type { Model } from "@mariozechner/pi-ai";
 import { html, LitElement } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { createRef, ref } from "lit/directives/ref.js";
-import { Brain, Loader2, Paperclip, Send, Sparkles, Square } from "lucide";
+import { Brain, Loader2, Mic, Paperclip, Send, Sparkles, Square } from "lucide";
 import { type Attachment, loadAttachment } from "../utils/attachment-utils.js";
 import { i18n } from "../utils/i18n.js";
 import "./AttachmentTile.js";
@@ -46,7 +46,9 @@ export class MessageEditor extends LitElement {
 
 	@state() processingFiles = false;
 	@state() isDragging = false;
+	@state() private _isListening = false;
 	private fileInputRef = createRef<HTMLInputElement>();
+	private _recognition: any | undefined;
 
 	protected override createRenderRoot(): HTMLElement | DocumentFragment {
 		return this;
@@ -121,6 +123,28 @@ export class MessageEditor extends LitElement {
 			this.onFilesChange?.(this.attachments);
 			this.processingFiles = false;
 		}
+	};
+
+	private handleMicClick = () => {
+		if (this._isListening) {
+			this._recognition?.stop();
+			return;
+		}
+		const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+		if (!SR) return;
+		this._recognition = new SR();
+		this._recognition.continuous = false;
+		this._recognition.interimResults = false;
+		this._recognition.onresult = (e: any) => {
+			const transcript: string = Array.from(e.results as any[])
+				.map((r: any) => r[0].transcript as string)
+				.join(" ");
+			this.value = this.value ? `${this.value} ${transcript}` : transcript;
+		};
+		this._recognition.onerror = () => { this._isListening = false; };
+		this._recognition.onend = () => { this._isListening = false; };
+		this._isListening = true;
+		this._recognition.start();
 	};
 
 	private handleSend = () => {
@@ -238,6 +262,7 @@ export class MessageEditor extends LitElement {
 		// Check if current model supports thinking/reasoning
 		const model = this.currentModel;
 		const supportsThinking = model?.reasoning === true; // Models with reasoning:true support thinking
+		const hasSpeechRecognition = !!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition;
 
 		return html`
 			<div
@@ -319,6 +344,17 @@ export class MessageEditor extends LitElement {
 											children: icon(Paperclip, "sm"),
 										})}
 									`
+								: ""
+						}
+						${
+							hasSpeechRecognition
+								? Button({
+										variant: "ghost",
+										size: "icon",
+										className: `h-8 w-8 ${this._isListening ? "text-red-500" : ""}`,
+										onClick: this.handleMicClick,
+										children: icon(Mic, "sm"),
+									})
 								: ""
 						}
 						${

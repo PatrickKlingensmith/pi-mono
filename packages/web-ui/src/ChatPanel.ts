@@ -79,7 +79,6 @@ export class ChatPanel extends LitElement {
 		this.agentInterface.enableAttachments = true;
 		this.agentInterface.enableModelSelector = true;
 		this.agentInterface.enableThinkingSelector = true;
-		this.agentInterface.showThemeToggle = false;
 		this.agentInterface.onApiKeyRequired = config?.onApiKeyRequired;
 		this.agentInterface.onModelSelect = config?.onModelSelect;
 		this.agentInterface.availableModels = config?.availableModels;

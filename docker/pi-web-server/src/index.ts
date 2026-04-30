@@ -13,10 +13,12 @@
  */
 
 import { AuthStorage, ModelRegistry, createAgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentTool } from "@mariozechner/pi-agent-core";
 import { existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Type } from "typebox";
 import { WebSocketServer, type WebSocket } from "ws";
 
 // ---------------------------------------------------------------------------
@@ -207,6 +209,40 @@ async function handleAgentConnection(ws: WebSocket): Promise<void> {
 
 	let session: Awaited<ReturnType<typeof createAgentSession>>["session"];
 
+	// Last user prompt text — used to re-queue when auto-fallback triggers
+	let lastUserPrompt = "";
+
+	// Ordered fallback chain: tried in sequence when the active model returns an error.
+	// Paid pinned models first, then free versions as last resort if billing fails.
+	const fallbackChain: Array<{ provider: string; modelId: string }> = [
+		{ provider: "openai", modelId: "gpt-5.4-mini-2026-03-17" },
+		{ provider: "openai", modelId: "gpt-5.4-2026-03-05" },
+		{ provider: "openai", modelId: "gpt-5.4-mini" }, // free fallback
+		{ provider: "openai", modelId: "gpt-5.4" },      // free fallback (last resort)
+	];
+	let fallbackIndex = 0;
+
+	// Apply reasoning level when switching to a provider that requires it
+	const applyThinkingLevel = (provider: string) => {
+		if (provider === "openai") {
+			(session!.agent.state as any).thinkingLevel = "medium";
+		}
+	};
+
+	const doModelSwitch = (provider: string, modelId: string) => {
+		const model = modelRegistry.find(provider, modelId);
+		if (!model) return false;
+		session!.agent.state.model = model;
+		applyThinkingLevel(provider);
+		send({
+			type: "state",
+			model: session!.state.model,
+			thinkingLevel: (session!.agent.state as any).thinkingLevel,
+			messages: session!.state.messages,
+		});
+		return true;
+	};
+
 	try {
 		const result = await createAgentSession({
 			cwd: WORKSPACE_DIR,
@@ -219,6 +255,63 @@ async function handleAgentConnection(ws: WebSocket): Promise<void> {
 		if (result.modelFallbackMessage) {
 			console.warn("[session] model fallback:", result.modelFallbackMessage);
 		}
+
+		// Inject switch_model tool so the agent can self-escalate
+		const switchModelSchema = Type.Object({
+			provider: Type.String({ description: "Provider name, e.g. openai" }),
+			modelId: Type.String({
+				description:
+					"Model ID. Escalation path: openai/gpt-5.4-mini-2026-03-17 (uncertain/struggling) → " +
+					"openai/gpt-5.4-2026-03-05 (complex reasoning) → openai/gpt-5.3-codex (code generation). " +
+					"Do NOT use the free variants (gpt-5.4-mini, gpt-5.4) for escalation — those are automatic fallbacks only.",
+			}),
+			reason: Type.String({ description: "Why you are switching models" }),
+			question: Type.Optional(
+				Type.String({
+					description:
+						"The user's original question. When set, the new model answers it automatically — " +
+						"the user does not need to repeat themselves. Always set this when escalating.",
+				}),
+			),
+		});
+		const switchModelTool: AgentTool<typeof switchModelSchema> = {
+			name: "switch_model",
+			label: "Switch model",
+			description:
+				"Switch the active AI model and optionally re-ask the current question on the new model. " +
+				"Escalation path (least → most capable): " +
+				"ollama_ubuntu26/gemma4:e4b → openai/gpt-5.4-mini-2026-03-17 (uncertain/struggling) → " +
+				"openai/gpt-5.4-2026-03-05 (complex tasks) → openai/gpt-5.3-codex (code generation). " +
+				"Always set 'question' to the user's original question so the new model answers without the user repeating themselves. " +
+				"OpenAI models use reasoning level 'medium' automatically.",
+			parameters: switchModelSchema,
+			execute: async (_toolCallId, params) => {
+				const switched = doModelSwitch(params.provider, params.modelId);
+				if (!switched) {
+					return {
+						content: [{ type: "text", text: `Model ${params.provider}/${params.modelId} not found in registry` }],
+						details: null,
+						isError: true,
+					};
+				}
+				console.log(`[switch_model] → ${params.provider}/${params.modelId} — ${params.reason}`);
+
+				if (params.question) {
+					session!.agent.followUp({
+						role: "user",
+						content: [{ type: "text", text: params.question }],
+						timestamp: Date.now(),
+					});
+				}
+
+				const followUpNote = params.question ? ` Re-asking with ${params.modelId} now.` : "";
+				return {
+					content: [{ type: "text", text: `Switched to ${params.provider}/${params.modelId}.${followUpNote}` }],
+					details: { provider: params.provider, modelId: params.modelId, reason: params.reason },
+				};
+			},
+		};
+		session.agent.state.tools = [...session.agent.state.tools, switchModelTool];
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		console.error("[session] failed to create:", msg);
@@ -227,9 +320,31 @@ async function handleAgentConnection(ws: WebSocket): Promise<void> {
 		return;
 	}
 
-	// Forward all session events to the browser
-	unsubscribe = session.subscribe((event) => {
+	// Forward all session events to the browser; auto-fallback on model errors
+	unsubscribe = session.subscribe(async (event) => {
 		send({ type: "event", event });
+
+		if (event.type === "agent_end") {
+			const msgs = (event as any).messages as any[];
+			const last = msgs?.[msgs.length - 1];
+			if (last?.role === "assistant" && last?.stopReason === "error") {
+				const errText = (last.errorMessage ?? last.error ?? "").toLowerCase();
+				const isModelError =
+					/quota|rate.?limit|credit|payment|insufficient|unavailable|unauthorized|403|402|429|503/.test(errText);
+				if (isModelError && fallbackIndex < fallbackChain.length) {
+					const { provider, modelId } = fallbackChain[fallbackIndex++];
+					const switched = doModelSwitch(provider, modelId);
+					if (switched) {
+						console.log(`[auto-fallback] switched to ${provider}/${modelId} after model error`);
+						if (lastUserPrompt) {
+							await session!.prompt(lastUserPrompt);
+						}
+					}
+				} else if (isModelError) {
+					console.warn("[auto-fallback] exhausted all fallback models");
+				}
+			}
+		}
 	});
 
 	// Send initial connected state
@@ -261,6 +376,8 @@ async function handleAgentConnection(ws: WebSocket): Promise<void> {
 				case "prompt": {
 					const text = String((msg as any).text ?? "").trim();
 					if (!text) return;
+					lastUserPrompt = text;
+					fallbackIndex = 0; // reset fallback chain for each new prompt
 					const images = (msg as any).images as Array<{ type: string; data: string; mimeType: string }> | undefined;
 					const files = (msg as any).files as UploadedFile[] | undefined;
 
